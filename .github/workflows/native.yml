@@ -23,28 +23,44 @@ jobs:
         include:
         - name: Ubuntu 22.04 full
           os: ubuntu-22.04
-          identifier: ubuntu_2204_full
+          identifier: ubuntu_2204_full_gcc
           cmake: -DCOMPILE_TESTS=on
           brt_tags: ""
           unittests: 'true'
+          gcc: 11
+          clang: ""
+        - name: Ubuntu 22.04 full (clang)
+          os: ubuntu-22.04
+          identifier: ubuntu_2204_full_clang
+          cmake: -DCOMPILE_TESTS=on
+          brt_tags: ""
+          unittests: 'true'
+          gcc: ""
+          clang: 14
         - name: Ubuntu 22.04 minimal
           os: ubuntu-22.04
           identifier: ubuntu_2204_minimal
           cmake: -DCOMPILE_TESTS=on -DUSE_WASM_COMPATIBLE_SOURCE=on
           brt_tags: "'#wasm'"
           unittests: 'false'
+          gcc: 11
+          clang: ""
         - name: Ubuntu 20.04 full
           os: ubuntu-20.04
           identifier: ubuntu_2004_full
           cmake: -DCOMPILE_TESTS=on
           brt_tags: ""
           unittests: 'true'
+          gcc: 11
+          clang: ""
         - name: Ubuntu 20.04 minimal
           os: ubuntu-20.04
           identifier: ubuntu_2004_minimal
           cmake: -DCOMPILE_TESTS=on -DUSE_WASM_COMPATIBLE_SOURCE=on
           brt_tags: "'#wasm'"
           unittests: 'false'
+          gcc: 11
+          clang: ""
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     steps:
@@ -56,6 +72,8 @@ jobs:
       run: |-
         sudo apt-get update
         sudo apt-get install -y libprotobuf-dev protobuf-compiler libboost-all-dev ccache libunwind-dev libgoogle-perftools-dev
+        [ -z "${{ matrix.gcc }}" ] || sudo apt-get install -y gcc-${{ matrix.gcc }} g++-${{ matrix.gcc }}
+        [ -z "${{ matrix.clang }}" ] || { wget https://apt.llvm.org/llvm.sh; sudo bash ./llvm.sh ${{ matrix.clang }}; }
     - name: Install MKL
       run: |-
         wget -qO- "https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB" | sudo apt-key add -
@@ -66,7 +84,7 @@ jobs:
       shell: bash
       id: ccache_vars
       run: |-
-        echo "::set-output name=hash::$(echo ${{ env.ccache_compilercheck }})"
+        echo "::set-output name=hash::$(echo ${{ matrix.gcc }}-${{ matrix.clang }}-${{ env.ccache_compilercheck }})"
         echo "::set-output name=timestamp::$(date '+%Y-%m-%dT%H.%M.%S')"
     - name: Cache-op for build-cache through ccache
       uses: actions/cache@v2
@@ -93,6 +111,8 @@ jobs:
       run: |-
         mkdir -p build
         cd build
+        [ -z "${{ matrix.gcc }}" ] || export CC=/usr/bin/gcc-${{ matrix.gcc }} CXX=/usr/bin/g++-${{ matrix.gcc }} CUDAHOSTCXX=/usr/bin/g++-${{ matrix.gcc }}
+        [ -z "${{ matrix.clang }}" ] || export CC=/usr/bin/clang-${{ matrix.clang }} CXX=/usr/bin/clang++-${{ matrix.clang }} CUDAHOSTCXX=/usr/bin/clang++-${{ matrix.clang }}
         cmake -L .. ${{ matrix.cmake }} ${{ env.ccache_cmake }}
     - name: Build from source
       working-directory: build
